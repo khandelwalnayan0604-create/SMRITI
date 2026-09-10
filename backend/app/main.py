@@ -2,6 +2,7 @@ import os
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -38,11 +39,14 @@ allowed_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:3000",
-    "http://127.0.0.1:3000"
+    "http://127.0.0.1:3000",
+    "https://*.onrender.com",
+    "https://*.vercel.app"
 ]
 
 app.add_middleware(
     CORSMiddleware,
+    allow_origin_regex=r"https:\/\/.*\.onrender\.com|https:\/\/.*\.vercel\.app|http:\/\/localhost:\d+",
     allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
@@ -74,3 +78,17 @@ async def health_check():
         "region": "North Eastern Region (NER) India",
         "compliance": "SIH26003 / MDoNER"
     }
+
+# Mount built frontend static files if present (for single-service unified cloud deployment)
+frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
+if os.path.isdir(frontend_dist):
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+
+    @app.exception_handler(404)
+    async def spa_fallback(request, exc):
+        if request.url.path.startswith("/api"):
+            return JSONResponse(status_code=404, content={"detail": "API route not found"})
+        index_file = os.path.join(frontend_dist, "index.html")
+        if os.path.isfile(index_file):
+            return FileResponse(index_file)
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
