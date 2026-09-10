@@ -33,21 +33,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration locked to frontend origin
-allowed_origins = [
-    settings.FRONTEND_URL,
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "https://*.onrender.com",
-    "https://*.vercel.app"
-]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"https:\/\/.*\.onrender\.com|https:\/\/.*\.vercel\.app|http:\/\/localhost:\d+",
-    allow_origins=allowed_origins,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -79,16 +67,27 @@ async def health_check():
         "compliance": "SIH26003 / MDoNER"
     }
 
-# Mount built frontend static files if present (for single-service unified cloud deployment)
-frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
-if os.path.isdir(frontend_dist):
+# Multi-path search for built frontend dist (works locally, in Docker, and on Render)
+possible_dist_paths = [
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist")),
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend/dist")),
+    os.path.abspath("/app/frontend/dist"),
+    os.path.abspath("./frontend/dist"),
+    os.path.abspath("../frontend/dist")
+]
+frontend_dist = next((p for p in possible_dist_paths if os.path.isdir(p)), None)
+
+if frontend_dist:
+    logger.info(f"Serving built React frontend from: {frontend_dist}")
     app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
 
     @app.exception_handler(404)
     async def spa_fallback(request, exc):
         if request.url.path.startswith("/api"):
-            return JSONResponse(status_code=404, content={"detail": "API route not found"})
+            return JSONResponse(status_code=404, content={"detail": "API endpoint not found"})
         index_file = os.path.join(frontend_dist, "index.html")
         if os.path.isfile(index_file):
             return FileResponse(index_file)
         return JSONResponse(status_code=404, content={"detail": "Not found"})
+else:
+    logger.warning("Frontend dist directory not found. API routes are active.")

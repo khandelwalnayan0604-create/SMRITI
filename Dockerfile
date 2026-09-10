@@ -21,11 +21,12 @@ RUN pip install --no-cache-dir -r ./backend/requirements.txt
 COPY backend/ ./backend/
 
 # Copy built frontend assets from builder stage
-COPY --from=frontend-builder /frontend/dist ./frontend/dist
+COPY --from=frontend-builder /frontend/dist /app/frontend/dist
 
 WORKDIR /app/backend
 
-EXPOSE 8000
+# Render defaults to port 10000, local defaults to 8000
+EXPOSE 10000 8000
 
-ENV PORT=8000
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+ENV PORT=10000
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}"]

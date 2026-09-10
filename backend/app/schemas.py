@@ -1,16 +1,16 @@
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 # Auth Schemas
 class CaregiverRegister(BaseModel):
     name: str
-    email: EmailStr
+    email: str
     password: str
     phone: Optional[str] = ""
 
 class CaregiverLogin(BaseModel):
-    email: EmailStr
+    email: str
     password: str
 
 class PatientLogin(BaseModel):
